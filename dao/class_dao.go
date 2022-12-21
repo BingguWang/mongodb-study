@@ -248,13 +248,13 @@ func Aggregate(ctx context.Context, db *mongo.Database) {
 
 func CreateIndexes(ctx context.Context, db *mongo.Database) {
 	models := []mongo.IndexModel{
-		{
-			Keys:    bson.D{{"classid", 1}, {"classname", 1}},
-			Options: options.Index().SetName("nameEmail"), // 指定索引名
-		},
+		//{
+		//	Keys:    bson.D{{"Classid", 1}, {"Classname", 1}},
+		//	Options: options.Index().SetName("nameEmail"), // 指定索引名
+		//},
 		{ //创建一个全文索引
-			Keys:    bson.D{{"comment", "text"}},
-			Options: options.Index().SetName("commentIdx"),
+			Keys:    bson.D{{"Brief", "text"}},
+			Options: options.Index().SetName("briefIdx"),
 		},
 	}
 
@@ -266,30 +266,52 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) {
 	fmt.Printf("created indexes %v\n", names)
 }
 
-func FindByFullTextIndex(ctx context.Context, db *mongo.Database) {
-
-	// 按照name排序并跳过第一个, 且只需返回name、level字段
+func FindCommentByFullTextIndex(ctx context.Context, db *mongo.Database) {
+	//  db.getCollection("class").find({$text:{$search:"test"}})
 	filter := &bson.D{
-		{"$text", bson.D{
-			{"$search", "提醒"},
-		}},
+		{
+			"$text", bson.M{
+			//"$search": "wqD", // 如果要查询多个关键字就用空格分隔，含有一种一个就能返回
+			//"$search": "\"ewtrwefs\" \"wqD\" ", // 查询提示包含这些关键字的document
+			"$search": "\"ewtrwefs\" \"wqD\" -A", // 查询提示包含这些关键字,但不包含A的document
+		},
+		},
 	}
-	// db.Collection不存在就会创建collection
-	findCursor, err := db.Collection("class").Find(ctx, filter)
+	// 输出全文检索匹配的分数
+	opts := options.Find().SetProjection(bson.D{{"score", bson.D{{"$meta", "textScore"}}}})
+	// 英文的索引建立都是根据空格来切分的，为单词建立索引，中文也是按空格拆分而不是一个汉字来拆分的，所以对中文不太友好
+	findCursor, err := db.Collection("class").Find(ctx, filter, opts)
 	if err != nil {
 		panic(err)
 	}
 	defer findCursor.Close(ctx)
 	for findCursor.Next(context.TODO()) {
 		// 创建一个值，将单个文档解码为该值
-		var elem model.Class
+		var (
+			elem model.Class
+			e    bson.M
+		)
 		err := findCursor.Decode(&elem)
+		err = findCursor.Decode(&e)
 		if err != nil {
 			fmt.Println(err.Error()+" id:", findCursor.ID())
 			continue
 		}
-		if elem.Id != nil {
-			fmt.Println(utils.GetTimePtr(elem.Id.Timestamp()))
+		fmt.Println(e)
+		fmt.Println(utils.ToJson(elem))
+	}
+}
+
+func ListIndex(ctx context.Context, db *mongo.Database) {
+	cursor, _ := db.Collection("class").Indexes().List(ctx)
+	defer cursor.Close(ctx)
+	for cursor.Next(context.TODO()) {
+		// 创建一个值，将单个文档解码为该值
+		var elem []bson.M
+		err := cursor.Decode(&elem)
+		if err != nil {
+			continue
 		}
+		fmt.Println(utils.ToJson(elem))
 	}
 }

@@ -8,7 +8,7 @@ type Class struct {
 	ClassName string     `json:"className"`
 	ClassDesc *ClassDesc `json:"classDesc"`
 	Years     int        `json:"years"`
-	Comment   string     `json:"comment"`
+	Brief     string     `json:"brief"`
 }
 type ClassDesc struct {
 	StuCount     int `json:"stuCount"`
